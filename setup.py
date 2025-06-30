@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 from packaging.version import parse, Version
 import platform
+import traceback
 
 from setuptools import setup, find_packages
 import subprocess
@@ -68,6 +69,24 @@ SKIP_CK_BUILD = os.getenv("FLASH_ATTENTION_SKIP_CK_BUILD", "TRUE") == "TRUE" if 
 @functools.lru_cache(maxsize=None)
 def cuda_archs() -> str:
     return os.getenv("FLASH_ATTN_CUDA_ARCHS", "80;90;100;120").split(";")
+
+
+def is_dependency_resolution():
+    """
+    Detect if we're being called for dependency resolution rather than actual building.
+    This checks various indicators that suggest we're in a dependency resolution context.
+    """
+    stack = traceback.extract_stack()
+    for frame in stack:
+        if 'setuptools/build_meta.py' in frame.filename:
+            if any(method in frame.name for method in [
+                'get_requires_for_build',
+                '_get_build_requires',
+                'prepare_metadata_for_build_editable',
+                'prepare_metadata_for_build_wheel'
+            ]):
+                return True
+    return False
 
 
 def get_platform():
@@ -159,6 +178,13 @@ else:
         assert (
             os.path.exists("csrc/cutlass/include/cutlass/cutlass.h")
         ), "csrc/cutlass is missing, please use source distribution or git clone"
+
+if not SKIP_CUDA_BUILD and not IS_ROCM:
+    if is_dependency_resolution():
+        warnings.warn("Skipping CUDA build during dependency resolution")
+        SKIP_CUDA_BUILD = True
+    else:
+        print("Not skipping CUDA build, proceeding with CUDA extension compilation...")
 
 if not SKIP_CUDA_BUILD and not IS_ROCM:
     print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
