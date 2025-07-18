@@ -59,7 +59,8 @@ BASE_WHEEL_URL = (
 
 # FORCE_BUILD: Force a fresh build locally, instead of attempting to find prebuilt wheels
 # SKIP_CUDA_BUILD: Intended to allow CI to use a simple `python setup.py sdist` run to copy over raw files, without any cuda compilation
-FORCE_BUILD = os.getenv("FLASH_ATTENTION_FORCE_BUILD", "FALSE") == "TRUE"
+# FORCE_BUILD = os.getenv("FLASH_ATTENTION_FORCE_BUILD", "FALSE") == "TRUE"
+FORCE_BUILD = True # Force a fres build for now, since prebuilt wheels sometimes produce errors with torch==2.6.0
 SKIP_CUDA_BUILD = os.getenv("FLASH_ATTENTION_SKIP_CUDA_BUILD", "FALSE") == "TRUE"
 # For CI, we want the option to build with C++11 ABI since the nvcr images use C++11 ABI
 FORCE_CXX11_ABI = os.getenv("FLASH_ATTENTION_FORCE_CXX11_ABI", "FALSE") == "TRUE"
@@ -70,6 +71,8 @@ SKIP_CK_BUILD = os.getenv("FLASH_ATTENTION_SKIP_CK_BUILD", "TRUE") == "TRUE" if 
 def cuda_archs() -> str:
     return os.getenv("FLASH_ATTN_CUDA_ARCHS", "80;90;100;120").split(";")
 
+if FORCE_BUILD:
+    print("FORCE_BUILD is set, building from source regardless of prebuilt wheels.")
 
 def is_dependency_resolution():
     """
@@ -472,6 +475,7 @@ def get_wheel_url():
     flash_version = get_package_version()
     torch_version = f"{torch_version_raw.major}.{torch_version_raw.minor}"
     cxx11_abi = str(torch._C._GLIBCXX_USE_CXX11_ABI).upper()
+    cxx11_abi = "FALSE" # workaround for now
 
     if IS_ROCM:
         torch_hip_version = get_hip_version()
@@ -492,6 +496,9 @@ def get_wheel_url():
         wheel_filename = f"{PACKAGE_NAME}-{flash_version}+cu{cuda_version}torch{torch_version}cxx11abi{cxx11_abi}-{python_version}-{python_version}-{platform_name}.whl"
 
     wheel_url = BASE_WHEEL_URL.format(tag_name=f"v{flash_version}", wheel_name=wheel_filename)
+
+    print("Using wheel URL: ", wheel_url)
+    print("Using wheel filename: ", wheel_filename)
 
     return wheel_url, wheel_filename
 
